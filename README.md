@@ -1,11 +1,9 @@
-# HIGH PERFORMANCE PROGRAMMING WITH GRAPHIC CARDS
+# Radix Sort Using OpenCL on GPU Platform
 ## Introduction
-- Topic: Implementation of Radix Sort in GPU
-- Group member: David, Tobi and Wenxin \[University of Stuttgart\]
+- Group members: David, Tobi and Wenxin \[University of Stuttgart\]
 - Deadline: 2022-07-25
 
 ## Task
-### Requirements
 1. Implement the Radix sort on GPU and compare the performance with the CPU code.
 2. The length of the input array (of integers, float or binary) to be sorted should be 1 million. 
 
