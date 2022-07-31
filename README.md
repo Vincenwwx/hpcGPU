@@ -3,7 +3,7 @@
 
 This project is based on the _Onesweep[^2]_ paper by Andy Adinets and Duane Merril from NVIDIA, but implemented with OpenCL.
 
-### Basics
+### Basic Concepts
 
 - Data: array of _n_ elements, with each element of _k_ bits
 - Digit: _d_ bits, size of every digit can be determined arbitarily
@@ -59,9 +59,13 @@ Now that we have had new indexes for all data elements, we re-scatter the elemen
 
 > Memory operation complexity: 2 * #_digit places_* n 
 
+## Performance Evaluation
+
+[TODO]
+
 ## Reference
-[^1] [Redix sort in Wiki](https://en.wikipedia.org/wiki/Radix_sort)
+[^1]: Radix sort ([Link to wiki](https://en.wikipedia.org/wiki/Radix_sort))
 
-[^2] [Onesweep: A Faster Least Significant Digit Radix Sort for GPUs](https://arxiv.org/pdf/2206.01784.pdf)
+[^2]: Onesweep: A Faster Least Significant Digit Radix Sort for GPUs ([paper](https://arxiv.org/pdf/2206.01784.pdf))
 
-[^3] [Single-pass Parallel Prefix Scan with Decoupled Look-back](https://research.nvidia.com/publication/2016-03_single-pass-parallel-prefix-scan-decoupled-look-back)
+[^3]: Single-pass Parallel Prefix Scan with Decoupled Look-back]([paper](https://research.nvidia.com/publication/2016-03_single-pass-parallel-prefix-scan-decoupled-look-back))
