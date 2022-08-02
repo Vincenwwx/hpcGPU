@@ -21,14 +21,14 @@
 #include <list>
 #include <iomanip>
 
-#define IN_PLACE_SORT
+//#define IN_PLACE_SORT
 
 const unsigned int KEY_SIZE = 32;
 const unsigned int DIGIT_SIZE = 8;
 const unsigned int DIGIT_PLACE = KEY_SIZE / DIGIT_SIZE;
 const unsigned int NUM_DIGIT_BINNINGS = 1 << DIGIT_SIZE;
 
-const unsigned int count = 256*24*4; // lenght of Array with data to sort, 1024*1024*4
+const unsigned int count = 2048*2048*4; // lenght of Array with data to sort, 1024*1024*4
 const unsigned int num_data_per_work_item = 4; // use a unsigned int vector of length 4
 
 //////////////////////////////////////////////////////////////////////////////
@@ -185,6 +185,7 @@ int main(int argc, char** argv) {
 	cl::Buffer global_histogram(context, CL_MEM_READ_WRITE, histogram_size);
 	cl::Buffer flag_IPS(context, CL_MEM_READ_WRITE, NUM_DIGIT_BINNINGS * num_workgroups * sizeof(unsigned int));
 	cl::Buffer partition_counter(context, CL_MEM_READ_WRITE, sizeof(unsigned int));
+	cl::Buffer mutex(context, CL_MEM_READ_WRITE, sizeof(unsigned int));
 
 	// Initialize memory to 0xff (useful for debugging because otherwise GPU memory will contain information from last execution)
 	memset(h_input.data(), 255, size);
@@ -203,15 +204,22 @@ int main(int argc, char** argv) {
 	Core::TimeSpan cpuStart = Core::getCurrentTime();
 	radixSort(h_input.data(), count);
 	Core::TimeSpan cpuEnd = Core::getCurrentTime();
-	std::cout << "Finish CPU execution." << std::endl;
+	std::cout << "-------------------------" << std::endl;
+	std::cout << "------- Host Part -------" << std::endl;
+	std::cout << "-------------------------" << std::endl;
+	std::cout << "Finish CPU execution" << std::endl;
+	std::cout << std::endl;
 
 	// ------------------------------------
 	// Device execution
 	// ------------------------------------
 	// Transfer data from host -> device
+	std::cout << "-------------------------" << std::endl;
+	std::cout << "----- Device Part -------" << std::endl;
+	std::cout << "-------------------------" << std::endl;
 	cl::Event writeTo;
 	queue.enqueueWriteBuffer(d_input, true, 0, size, h_input.data(), NULL, &writeTo);
-	std::cout << "Data is copied to device." << std::endl;
+	std::cout << "- Data is copied to device" << std::endl;
 
 	cl::Event calGlobalHistogram;	
 	// Kernel 1: Get global histogram
@@ -219,22 +227,22 @@ int main(int argc, char** argv) {
 	ckUpfrontHistogram.setArg<cl::Buffer>(1, global_histogram);
 	ckUpfrontHistogram.setArg(2, cl::Local(histogram_size));
 	queue.enqueueNDRangeKernel(ckUpfrontHistogram, cl::NullRange, num_work_items, size_work_group, NULL, &calGlobalHistogram);
-	std::cout << "Finish 1st kernel" << std::endl;
+	std::cout << "- Finish 1st kernel" << std::endl;
 	
 	// Kernel 2: Compute exclusive prefix sum of global histogram
 	cl::Event calGlobalHistogramPrefix;
 	ckExclusiveSum.setArg<cl::Buffer>(0, global_histogram);
 	queue.enqueueNDRangeKernel(ckExclusiveSum, cl::NullRange, DIGIT_PLACE, DIGIT_PLACE, NULL, &calGlobalHistogramPrefix);
-	std::cout << "Finish 2nd kernel" << std::endl;
+	std::cout << "- Finish 2nd kernel" << std::endl;
 
 	//const unsigned int zero = 0;
 	// Kernel 3: chained scan digit binnings for #digit places times/iterations
 	cl::Event chainedEvents[DIGIT_PLACE];
-	for (int i = 0; i < DIGIT_PLACE; i++) 
+	for (int i = 0; i < DIGIT_PLACE; i++)
 	{
-		//queue.enqueueWriteBuffer(partition_counter, true, 0, sizeof(unsigned int), &zero);
 		queue.enqueueFillBuffer(flag_IPS, 0, 0, NUM_DIGIT_BINNINGS*num_workgroups*sizeof(unsigned int), NULL, NULL);
 		queue.enqueueFillBuffer(partition_counter, 0, 0, sizeof(unsigned int), NULL, NULL);
+		queue.enqueueFillBuffer(mutex, 0, 0, sizeof(unsigned int), NULL, NULL);
 
 		ckChainedScanDigitBinning.setArg(0, d_input);
 		ckChainedScanDigitBinning.setArg(1, global_histogram);
@@ -243,28 +251,33 @@ int main(int argc, char** argv) {
 		ckChainedScanDigitBinning.setArg(4, cl::Local(NUM_DIGIT_BINNINGS*sizeof(unsigned int))); // Aggregate
 		ckChainedScanDigitBinning.setArg(5, partition_counter);
 		ckChainedScanDigitBinning.setArg(6, i);
+		ckChainedScanDigitBinning.setArg(7, d_output);
 		queue.enqueueNDRangeKernel(ckChainedScanDigitBinning, cl::NullRange, num_work_items, size_work_group, NULL, &chainedEvents[i]);
-		std::cout << "\tChained [" << i << "] passed!" << std::endl;
 	}
-	std::cout << "Finish 3rd kernel" << std::endl;
+	std::cout << "- Finish 3rd kernel" << std::endl;
 
 	// transfer reordered data back to host
 	cl::Event writeBack;
-	//clEnqueueReadBuffer(queue, d_input, CL_TRUE, 0, size, h_outputGpu, 0, NULL, &writeBack);
+#ifndef IN_PLACE_SORT
 	queue.enqueueReadBuffer(d_input, CL_TRUE, 0, size, h_outputGpu.data(), NULL, &writeBack);
+#else
+	queue.enqueueReadBuffer(d_output, CL_TRUE, 0, size, h_outputGpu.data(), NULL, &writeBack);
+#endif
+	std::cout << "- Copy result back to host" << std::endl;
 
 	// ------------------------------------
 	// Validation
 	// ------------------------------------
-	int newLine = 5;
 	bool correct = true;	
+#ifdef DEBUG_RESULT
+	const int newLine = 5;
 	std::cout << "GPU reordered:" << std::endl;  
+#endif
 	for (int i = 1; i < count; i++) {
 #ifdef DEBUG_RESULT
 		std::cout << std::setw(10) << h_outputGpu[i-1] << " ";
-		if ((i % 5) == 0) std::cout << std::endl;
+		if ((i % newLine) == 0) std::cout << std::endl;
 #endif
-
 		if (h_outputGpu[i-1] > h_outputGpu[i]) {
 			correct = false;
 			break;
@@ -276,18 +289,19 @@ int main(int argc, char** argv) {
 		exit(1);
 	}
 
+#ifdef DEBUG_RESULT
 	std::cout << "CPU reordered:" << std::endl;
+#endif
 	for (int i = 1; i < count; i++) {
 #ifdef DEBUG_RESULT
 		std::cout << std::setw(10) << h_input[i-1] << " ";
-		if ((i % 5) == 0) std::cout << std::endl;
+		if ((i % newLine) == 0) std::cout << std::endl;
 #endif
 		if (h_input[i-1] > h_input[i]) {
 			correct = false;
 			break;
 		}
 	}
-	std::cout << std::endl;
 	if (!correct) {
 		std::cerr << "[ERROR] CPU sorting wrong..." << std::endl;
 		exit(1);
@@ -307,12 +321,19 @@ int main(int argc, char** argv) {
 	Core::TimeSpan copyTime = copyTime1 + copyTime2;
 	Core::TimeSpan overallGpuTime = gpuTime +copyTime;
 	
-	std::cout << "CPU Time: " << cpuTime.toString() << std::endl;
-	std::cout << "Memory copy Time: " << copyTime.toString() << std::endl;
-	std::cout << "GPU Time w/o memory copy: " << gpuTime.toString() << " (speedup = " << (cpuTime.getSeconds() / gpuTime.getSeconds()) << ")" << std::endl;
-	std::cout << "GPU Time with memory copy: " << overallGpuTime.toString() << " (speedup = " << (cpuTime.getSeconds() / overallGpuTime.getSeconds()) << ")" << std::endl;
+	std::cout << "****************************************" << std::endl;
+	std::cout << "            Evaluation Part             " << std::endl;
+	std::cout << "****************************************" << std::endl;
+	std::cout << std::left << std::setw(27) << "Number of key: " << count << std::endl;
+	std::cout << std::left << std::setw(27) << "Size of each keys:" << KEY_SIZE << " bits" << std::endl;
+	std::cout << std::left << std::setw(27) << "Size of each digit:" << DIGIT_SIZE << " bits" << std::endl;
+	std::cout << std::endl;
+	std::cout << std::left << std::setw(27) << "CPU Time: " << cpuTime.toString() << std::endl;
+	std::cout << std::left << std::setw(27) << "Memory copy Time: " << copyTime.toString() << std::endl;
+	std::cout << std::left << std::setw(27) << "GPU Time w/o memory copy: " << gpuTime.toString() << " (speedup = " << (cpuTime.getSeconds() / gpuTime.getSeconds()) << ")" << std::endl;
+	std::cout << std::left << std::setw(27) << "GPU Time with memory copy: " << overallGpuTime.toString() << " (speedup = " << (cpuTime.getSeconds() / overallGpuTime.getSeconds()) << ")" << std::endl;
 
-	std::cout << "Success" << std::endl;
+	std::cout << "Success!" << std::endl;
 
 	return 0;
 }
