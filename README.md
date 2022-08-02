@@ -61,7 +61,20 @@ Now that we have had new indexes for all data elements, we re-scatter the elemen
 
 ## Performance Evaluation
 
-[TODO]
+### Test - 1
+
+Platforms
+
+- CPU: Intel(R) Xeon(R) Gold 6148 CPU @ 2.40GHz
+- GPU: NVIDIA GeForce 1080 Ti
+
+Data
+- Number of keys: 33472512 (2048 * 4086 * 4)
+- Type of keys: unsigned int (32 bits)
+- Size of digit: 8 bits
+- All keys are uniform-randomly generated
+
+-> Algorithm is executed more than 8 times faster in GPU that in CPU
 
 ## Reference
 [^1]: Radix sort ([Link to wiki](https://en.wikipedia.org/wiki/Radix_sort))
