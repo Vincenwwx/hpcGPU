@@ -45,7 +45,7 @@ _Figure 2 - Exclusive Sum_
 
 This kernel will be executed #_digit places_ times/iterations. 
 
-For each iteration: it will first calculate the starting index of each digit binning in every data tile using the __decoupled look-back__[^3] technique. And there will be #_digit binnings_ look-back lanes for each iteration.
+For each iteration: it will first calculate the starting index of each digit binning in every data tiles using the __decoupled look-back__[^3] technique. And there will be #_digit binnings_ look-back lanes for each iteration.
 ![Chained](https://user-images.githubusercontent.com/49132368/182047634-a329bf05-64ed-44ac-b033-a4de664cd79a.png)
 _Figure 3 - Chained Scans_
 
@@ -53,9 +53,9 @@ _Figure 3 - Chained Scans_
 
 _Figure 4 - Decoupled Look-back Technique_ 
 
-Then, each tile/block will sequentially scan itself to further get the global index for every internal data elements, and the scans happening among the blocks are conducted simultaneously.
+After getting the starting indexes in global space, each tile/block will sequentially scan itself to further get the global index for every internal data elements, and the scans happening among the blocks are conducted simultaneously.
 
-Now that we have had new indexes for all data elements, we re-scatter the elements into the data array.
+Now that we have had new indexes for all data elements, we do the permutation.
 
 > Memory operation complexity: 2 * #_digit places_* n 
 
